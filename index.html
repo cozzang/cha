@@ -2,15 +2,104 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>chasua</title>
-  <style>html,body{height:100%;margin:0} iframe{width:100%;height:100%;border:0}</style>
+  <style>
+    :root { --gap: 12px; }
+    html,body { height: 100%; margin: 0; background:#111; color:#eee; }
+    header { position: sticky; top: 0; background:#111; padding: 10px var(--gap); display:flex; gap:8px; align-items:center; border-bottom:1px solid #222; z-index: 10; }
+    button { padding: 6px 10px; border-radius: 10px; border:1px solid #333; background:#1b1b1b; color:#eee; }
+    #viewer { padding: var(--gap); display:grid; gap: var(--gap); }
+    .page { background:#fff; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,.3); overflow:hidden; }
+    .msg { padding: 10px var(--gap); font-size: 14px; color:#bbb; }
+    .sr-only { position:absolute; left:-9999px; }
+  </style>
 </head>
 <body>
-  <!-- Mozilla PDF.js 온라인 뷰어로 모바일에서도 바로 보기 -->
-  <iframe
-    src="https://mozilla.github.io/pdf.js/web/viewer.html?file=https%3A%2F%2Fchasua.com%2Fchasua.pdf#zoom=page-width"
-    title="chasua PDF">
-  </iframe>
+  <header>
+    <strong>📄 chasua.pdf</strong>
+    <button onclick="location.href='/chasua.pdf'" aria-label="다운로드">다운로드</button>
+  </header>
+
+  <div id="viewer" role="region" aria-label="PDF viewer"></div>
+  <div id="status" class="msg">로딩 중…</div>
+
+  <!-- PDF.js (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+  <script>
+    // 워커 설정 (필수)
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+    const PDF_URL = "/chasua.pdf"; // 같은 레포 루트에 chasua.pdf가 있어야 합니다.
+    const viewer = document.getElementById("viewer");
+    const status = document.getElementById("status");
+
+    // 디바이스 픽셀밀도 고려해 선명도 유지
+    const DPR = Math.max(1, window.devicePixelRatio || 1);
+
+    // 가로폭에 맞춰서 페이지 크기 계산
+    function computeScale(page, targetCSSWidth) {
+      const viewport = page.getViewport({ scale: 1 });
+      return targetCSSWidth / viewport.width;
+    }
+
+    async function renderPage(pdf, pageNum) {
+      const page = await pdf.getPage(pageNum);
+
+      // 목표 너비: 화면 여백 감안 (패딩 24px)
+      const containerWidth = Math.max(320, document.documentElement.clientWidth - 2 * 12);
+
+      const scale = computeScale(page, containerWidth);
+      const viewport = page.getViewport({ scale });
+
+      // 캔버스 생성
+      const canvas = document.createElement("canvas");
+      const wrapper = document.createElement("div");
+      wrapper.className = "page";
+      wrapper.appendChild(canvas);
+      viewer.appendChild(wrapper);
+
+      // DPI 보정(고해상도 렌더링)
+      canvas.style.width = viewport.width + "px";
+      canvas.style.height = viewport.height + "px";
+      canvas.width = Math.floor(viewport.width * DPR);
+      canvas.height = Math.floor(viewport.height * DPR);
+
+      const ctx = canvas.getContext("2d");
+      const renderContext = {
+        canvasContext: ctx,
+        transform: [DPR, 0, 0, DPR, 0, 0],
+        viewport
+      };
+
+      await page.render(renderContext).promise;
+    }
+
+    async function main() {
+      try {
+        // 로드
+        const pdf = await pdfjsLib.getDocument(PDF_URL).promise;
+        status.textContent = `총 ${pdf.numPages}페이지 로딩 중…`;
+
+        // 순차 렌더링(모바일 메모리 안정성)
+        for (let i = 1; i <= pdf.numPages; i++) {
+          await renderPage(pdf, i);
+        }
+        status.textContent = "완료";
+        setTimeout(() => (status.style.display = "none"), 800);
+
+      } catch (err) {
+        console.error(err);
+        status.textContent = "PDF를 불러오지 못했습니다. 파일 경로나 권한을 확인하세요.";
+      }
+    }
+
+    // 뷰포트 변경 시 리렌더 (간단히 새로고침)
+    window.addEventListener("orientationchange", () => location.reload());
+    window.addEventListener("resize", () => { /* 필요 시 throttle 후 재렌더 구현 가능 */ });
+
+    main();
+  </script>
 </body>
 </html>
