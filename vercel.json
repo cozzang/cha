@@ -7,8 +7,5 @@
         { "key": "Content-Disposition", "value": "inline; filename=\"chasua.pdf\"" }
       ]
     }
-  ],
-  "redirects": [
-    { "source": "/", "destination": "/chasua.pdf", "permanent": true }
   ]
 }
