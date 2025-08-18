@@ -1,0 +1,5 @@
+{
+  "redirects": [
+    { "source": "/", "destination": "/chasua.pdf", "permanent": true }
+  ]
+}
